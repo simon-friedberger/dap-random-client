@@ -9,14 +9,13 @@ use hpke::Deserializable;
 use hpke::{
     aead::AesGcm128, kdf::HkdfSha256, kem::X25519HkdfSha256, Kem as KemTrait, OpModeS, Serializable,
 };
-use prio::vdaf::{prio3::Prio3Aes128CountVec, Client};
-use prio::{
-    codec::{Decode, Encode},
-    vdaf::prio3::Prio3Aes128Sum,
-};
+use prio::codec::decode_u16_items;
+use prio::vdaf::{prio3::Prio3SumVec, Client};
+use prio::{codec::Encode, vdaf::prio3::Prio3Sum};
 use rand::{thread_rng, Rng, SeedableRng};
 use reqwest::StatusCode;
 use serde::Deserialize;
+use std::io::Cursor;
 use std::{
     error::Error,
     fs::File,
@@ -25,7 +24,7 @@ use std::{
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
 
 mod types;
-use crate::types::{DAPRole, HpkeConfig, ReportId, TaskId, Time, DAPAAD};
+use crate::types::{DAPRole, HpkeConfig, ReportID, TaskID, Time, DAPAAD};
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -36,7 +35,7 @@ struct Config {
 
 #[derive(Debug, Deserialize)]
 struct Task {
-    id: TaskId,
+    id: TaskID,
     vdaf: String,
     veclen: usize,
     bits: u32,
@@ -49,7 +48,21 @@ fn read_config() -> Config {
     json_data
 }
 
-async fn get_hpke_config(base_url: &str, task_id: &TaskId) -> Result<HpkeConfig, Box<dyn Error>> {
+fn select_hpke_config(configs: Vec<HpkeConfig>) -> Result<HpkeConfig, Box<dyn Error>> {
+    for config in configs {
+        if config.kem_id == 0x20 /* DHKEM(X25519, HKDF-SHA256) */ &&
+        config.kdf_id == 0x01 /* HKDF-SHA256 */ &&
+        config.aead_id == 0x01
+        /* AES-128-GCM */
+        {
+            return Ok(config);
+        }
+    }
+
+    Err("No suitable HPKE config found.".into())
+}
+
+async fn get_hpke_config(base_url: &str, task_id: &TaskID) -> Result<HpkeConfig, Box<dyn Error>> {
     let url = format!(
         "{}/hpke_config?task_id={}",
         base_url,
@@ -61,7 +74,8 @@ async fn get_hpke_config(base_url: &str, task_id: &TaskId) -> Result<HpkeConfig,
     if status != StatusCode::OK {
         panic!("Failed to get HPKE config: {:?}", &resp);
     }
-    Ok(HpkeConfig::get_decoded(&resp.bytes().await?)?) // TODO use anyhow
+    let configs = decode_u16_items(&(), &mut Cursor::new(&resp.bytes().await?))?;
+    Ok(select_hpke_config(configs)?) // TODO use anyhow
 }
 
 fn dap_encrypt(
@@ -91,10 +105,10 @@ fn dap_encrypt(
     }
 }
 
-async fn send_report(report: Report, config: &Config) -> Result<(), Box<dyn Error>> {
+async fn send_report(report: Report, config: &Config, task_id: &TaskID) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
     let res = client
-        .post(format!("{}/upload", config.leader_url))
+        .put(format!("{}/tasks/{}/reports", config.leader_url, task_id.base64encoded()))
         .header("Content-Type", "application/dap-report")
         .body(report.get_encoded())
         .send()
@@ -102,9 +116,10 @@ async fn send_report(report: Report, config: &Config) -> Result<(), Box<dyn Erro
 
     if res.status() != StatusCode::OK {
         println!("ERROR: Failed to send report. Response: {:?}", res);
+        Err("Failed to send report".into())
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
 
 async fn submit_reports_for_task(
@@ -123,8 +138,10 @@ async fn submit_reports_for_task(
     assert_eq!(leader_hpke_config.aead_id, 1);
     assert_eq!(helper_hpke_config.aead_id, 1);
 
-    let (_, input_shares) = if task.vdaf == "Prio3Aes128CountVec" {
-        let prio = Prio3Aes128CountVec::new_aes128_count_vec(2, task.veclen).unwrap();
+    let report_id = ReportID::generate();
+
+    let (_, input_shares) = if task.vdaf == "Prio3SumVec" {
+        let prio = Prio3SumVec::new_sum_vec(2, 1, task.veclen).unwrap();
         let mut measurement = vec![0; task.veclen];
         measurement[0] = 1;
         if thread_rng().gen::<bool>() {
@@ -132,23 +149,22 @@ async fn submit_reports_for_task(
         } else {
             measurement[3] = 1;
         }
-        prio.shard(&measurement).unwrap()
-    } else if task.vdaf == "Prio3Aes128Sum" {
-        let prio = Prio3Aes128Sum::new_aes128_sum(2, task.bits).unwrap();
+        prio.shard(&measurement, report_id.as_ref()).unwrap()
+    } else if task.vdaf == "Prio3Sum" {
+        let prio = Prio3Sum::new_sum(2, task.bits.try_into().unwrap()).unwrap();
 
         let measurement = thread_rng().gen_range(0..1 << task.bits);
-        prio.shard(&measurement).unwrap()
+        prio.shard(&measurement, report_id.as_ref()).unwrap()
     } else {
-        panic!("Not implemented.");
+        panic!("Not implemented. task.vdaf: {} unknown.", task.vdaf);
     };
 
     debug_assert_eq!(input_shares.len(), 2);
 
     let time_precision = 60;
     let metadata = ReportMetadata {
-        report_id: ReportId::generate(),
+        report_id: ReportID::generate(),
         time: Time::generate(time_precision),
-        extensions: vec![],
     };
 
     let public_share: Vec<u8> = Vec::new();
@@ -168,13 +184,12 @@ async fn submit_reports_for_task(
     );
 
     let report = Report {
-        task_id: task.id.clone(),
         metadata,
         public_share,
         encrypted_input_shares: vec![leader_payload, helper_payload],
     };
 
-    send_report(report, &config).await.unwrap();
+    send_report(report, &config, &task.id).await.unwrap();
 }
 
 #[tokio::main]

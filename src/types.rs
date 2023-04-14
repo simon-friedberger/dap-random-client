@@ -62,7 +62,7 @@ pub struct DAPAAD {
 }
 
 impl DAPAAD {
-    pub fn new(task_id: &TaskId, metadata: &ReportMetadata, public_share: &Vec<u8>) -> Self {
+    pub fn new(task_id: &TaskID, metadata: &ReportMetadata, public_share: &Vec<u8>) -> Self {
         let mut aad: Vec<u8> = Vec::new();
         task_id.encode(&mut aad);
         metadata.encode(&mut aad);
@@ -76,35 +76,35 @@ impl DAPAAD {
 }
 
 /// opaque TaskId[32];
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-task-configuration
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-task-configuration
 #[derive(Debug, PartialEq, Eq, Deserialize, Clone)]
-pub struct TaskId(pub [u8; 32]);
+pub struct TaskID(pub [u8; 32]);
 
-impl TaskId {
+impl TaskID {
     pub fn base64encoded(&self) -> String {
         let task_id_base64 = general_purpose::URL_SAFE_NO_PAD.encode(self.0);
         task_id_base64
     }
 }
 
-impl Decode for TaskId {
+impl Decode for TaskID {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
         // this should probably be available in codec...?
         let mut data: [u8; 32] = [0; 32];
         bytes.read_exact(&mut data)?;
-        Ok(TaskId(data))
+        Ok(TaskID(data))
     }
 }
 
-impl Encode for TaskId {
+impl Encode for TaskID {
     fn encode(&self, bytes: &mut Vec<u8>) {
         bytes.extend_from_slice(&self.0);
     }
 }
 
-/// Time uint64;
+/// uint64 Time;
 /// seconds elapsed since start of UNIX epoch
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
 pub struct Time(pub u64);
 
@@ -136,7 +136,7 @@ impl Time {
 ///     ExtensionType extension_type;
 ///     opaque extension_data<0..2^16-1>;
 /// } Extension;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-upload-extensions
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-extensions
 #[derive(Debug, PartialEq)]
 pub struct Extension {
     extension_type: ExtensionType,
@@ -166,7 +166,7 @@ impl Encode for Extension {
 ///     TBD(0),
 ///     (65535)
 /// } ExtensionType;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-upload-extensions
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-extensions
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u16)]
 enum ExtensionType {
@@ -184,7 +184,7 @@ impl ExtensionType {
 
 /// Identifier for a server's HPKE configuration
 /// uint8 HpkeConfigId;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct HpkeConfigId(u8);
 
@@ -211,7 +211,7 @@ impl Encode for HpkeConfigId {
 /// uint16 HpkeAeadId; /* Defined in [HPKE] */
 /// uint16 HpkeKemId;  /* Defined in [HPKE] */
 /// uint16 HpkeKdfId;  /* Defined in [HPKE] */
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-hpke-configuration-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-hpke-configuration-request
 #[derive(Debug)]
 pub struct HpkeConfig {
     pub id: HpkeConfigId,
@@ -249,7 +249,7 @@ impl Encode for HpkeConfig {
 ///     opaque enc<1..2^16-1>;     /* encapsulated HPKE key */
 ///     opaque payload<1..2^32-1>; /* ciphertext */
 /// } HpkeCiphertext;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
 pub struct HpkeCiphertext {
     pub config_id: HpkeConfigId,
@@ -279,55 +279,54 @@ impl Encode for HpkeCiphertext {
     }
 }
 
-/// uint8 ReportID[16];
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-protocol-definition
+/// opaque ReportID[16];
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
-pub struct ReportId(pub [u8; 16]);
+pub struct ReportID(pub [u8; 16]);
 
-impl Decode for ReportId {
+impl Decode for ReportID {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
         let mut data: [u8; 16] = [0; 16];
         bytes.read_exact(&mut data)?;
-        Ok(ReportId(data))
+        Ok(ReportID(data))
     }
 }
 
-impl Encode for ReportId {
+impl Encode for ReportID {
     fn encode(&self, bytes: &mut Vec<u8>) {
         bytes.extend_from_slice(&self.0);
     }
 }
 
-impl ReportId {
-    pub fn generate() -> ReportId {
-        ReportId(rand::thread_rng().gen())
+impl ReportID {
+    pub fn generate() -> ReportID {
+        ReportID(rand::thread_rng().gen())
+    }
+}
+
+impl AsRef<[u8; 16]> for ReportID {
+    fn as_ref(&self) -> &[u8; 16] {
+        &self.0
     }
 }
 
 /// struct {
 ///     ReportID report_id;
 ///     Time time;
-///     Extension extensions<0..2^16-1>;
 /// } ReportMetadata;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-upload-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-request
 #[derive(Debug, PartialEq)]
 pub struct ReportMetadata {
-    pub report_id: ReportId,
+    pub report_id: ReportID,
     pub time: Time,
-    pub extensions: Vec<Extension>,
 }
 
 impl Decode for ReportMetadata {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
-        let report_id = ReportId::decode(bytes)?;
+        let report_id = ReportID::decode(bytes)?;
         let time = Time::decode(bytes)?;
-        let extensions = decode_u16_items(&(), bytes)?;
 
-        Ok(ReportMetadata {
-            report_id,
-            time,
-            extensions,
-        })
+        Ok(ReportMetadata { report_id, time })
     }
 }
 
@@ -335,44 +334,38 @@ impl Encode for ReportMetadata {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.report_id.encode(bytes);
         self.time.encode(bytes);
-        encode_u16_items(bytes, &(), &self.extensions);
     }
 }
 
 /// struct {
-///     TaskID task_id;
 ///     ReportMetadata metadata;
 ///     opaque public_share<0..2^32-1>;
 ///     HpkeCiphertext encrypted_input_shares<1..2^32-1>;
 /// } Report;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-02.html#name-upload-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-request
 #[derive(Debug, PartialEq)]
 pub struct Report {
-    pub task_id: TaskId,
     pub metadata: ReportMetadata,
     pub public_share: Vec<u8>,
     pub encrypted_input_shares: Vec<HpkeCiphertext>,
 }
 
-// impl Report {
-//     /// Creates a minimal report for use in tests.
-//     pub fn new_dummy() -> Self {
-//         Report {
-//             task_id: TaskId([0x12; 32]),
-//             metadata: ReportMetadata {
-//                 report_id: ReportId::generate(),
-//                 time: Time::generate(1),
-//                 extensions: vec![],
-//             },
-//             public_share: vec![],
-//             encrypted_input_shares: vec![],
-//         }
-//     }
-// }
+impl Report {
+    /// Creates a minimal report for use in tests.
+    pub fn new_dummy() -> Self {
+        Report {
+            metadata: ReportMetadata {
+                report_id: ReportID::generate(),
+                time: Time::generate(1),
+            },
+            public_share: vec![],
+            encrypted_input_shares: vec![],
+        }
+    }
+}
 
 impl Decode for Report {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
-        let task_id = TaskId::decode(bytes)?;
         let metadata = ReportMetadata::decode(bytes)?;
         let public_share: Vec<u8> = decode_u32_items(&(), bytes)?;
         let encrypted_input_shares: Vec<HpkeCiphertext> = decode_u32_items(&(), bytes)?;
@@ -380,7 +373,6 @@ impl Decode for Report {
         let remaining_bytes = bytes.get_ref().len() - (bytes.position() as usize);
         if remaining_bytes == 0 {
             Ok(Report {
-                task_id,
                 metadata,
                 public_share,
                 encrypted_input_shares,
@@ -393,7 +385,6 @@ impl Decode for Report {
 
 impl Encode for Report {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.task_id.encode(bytes);
         self.metadata.encode(bytes);
         encode_u32_items(bytes, &(), &self.public_share);
         encode_u32_items(bytes, &(), &self.encrypted_input_shares);
