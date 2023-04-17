@@ -140,7 +140,7 @@ async fn submit_reports_for_task(
 
     let report_id = ReportID::generate();
 
-    let (_, input_shares) = if task.vdaf == "Prio3SumVec" {
+    let (prio3public_share, input_shares) = if task.vdaf == "Prio3SumVec" {
         let prio = Prio3SumVec::new_sum_vec(2, 1, task.veclen).unwrap();
         let mut measurement = vec![0; task.veclen];
         measurement[0] = 1;
@@ -160,6 +160,7 @@ async fn submit_reports_for_task(
     };
 
     debug_assert_eq!(input_shares.len(), 2);
+    let public_share = prio3public_share.get_encoded();
 
     let time_precision = 60;
     let metadata = ReportMetadata {
@@ -167,7 +168,6 @@ async fn submit_reports_for_task(
         time: Time::generate(time_precision),
     };
 
-    let public_share: Vec<u8> = Vec::new();
     let aad = DAPAAD::new(&task.id, &metadata, &public_share);
     let leader_payload = dap_encrypt(
         &leader_hpke_config,
