@@ -8,14 +8,14 @@
             , "vdaf": "Prio3SumVec"
             , "veclen": 1024
             , "bits": 1
-            , "report_count": 12
+            , "report_count": 120
         }
         , {
             "id": [66, 51, 3, 226, 127, 37, 252, 193, 193, 160, 186, 219, 9, 242, 211, 22, 47, 33, 11, 110, 184, 124, 46, 125, 72, 161, 207, 190, 35, 197, 210, 175]
             , "vdaf": "Prio3Sum"
             , "veclen": 0
             , "bits": 2
-            , "report_count": 13
+            , "report_count": 130
         }
     ]
 }

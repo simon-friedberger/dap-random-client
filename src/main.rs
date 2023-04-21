@@ -24,7 +24,7 @@ use std::{
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
 
 mod types;
-use crate::types::{DAPRole, HpkeConfig, ReportID, TaskID, Time, DAPAAD};
+use crate::types::{DAPRole, HpkeConfig, ReportID, TaskID, Time, DAPAAD, PlaintextInputShare, Extension};
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -164,23 +164,32 @@ async fn submit_reports_for_task(
 
     let time_precision = 60;
     let metadata = ReportMetadata {
-        report_id: ReportID::generate(),
+        report_id,
         time: Time::generate(time_precision),
     };
 
     let aad = DAPAAD::new(&task.id, &metadata, &public_share);
+
+    let leader_pt_share = PlaintextInputShare {
+        extensions: Vec::new(),
+        payload: input_shares[0].get_encoded(),
+    };
     let leader_payload = dap_encrypt(
         &leader_hpke_config,
-        &input_shares[0].get_encoded(),
+        &leader_pt_share.get_encoded(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Leader),
     );
-    let helper_info = DAPHpkeInfo::new(DAPRole::Client, DAPRole::Helper);
+
+    let helper_pt_share = PlaintextInputShare {
+        extensions: Vec::new(),
+        payload: input_shares[1].get_encoded(),
+    };
     let helper_payload = dap_encrypt(
         &helper_hpke_config,
-        &input_shares[1].get_encoded(),
+        &helper_pt_share.get_encoded(),
         &aad,
-        &helper_info,
+        &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Helper),
     );
 
     let report = Report {

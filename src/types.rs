@@ -45,7 +45,7 @@ pub struct DAPHpkeInfo {
 
 impl DAPHpkeInfo {
     pub fn new(sender: DAPRole, receiver: DAPRole) -> Self {
-        let mut info: Vec<u8> = b"dap-02 input share".iter().copied().collect();
+        let mut info: Vec<u8> = b"dap-04 input share".iter().copied().collect();
         info.push(sender.as_byte());
         info.push(receiver.as_byte());
         DAPHpkeInfo { data: info }
@@ -179,6 +179,24 @@ impl ExtensionType {
             0 => ExtensionType::Tbd,
             _ => panic!("Unknown value for Extension Type: {}", value),
         }
+    }
+}
+
+/// Identifier for a server's HPKE configuration
+/// struct {
+///     Extension extensions<0..2^16-1>;
+///     opaque payload<0..2^32-1>;
+/// } PlaintextInputShare;
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#section-4.3.2-9
+pub struct PlaintextInputShare {
+    pub extensions: Vec<Extension>,
+    pub payload: Vec<u8>,
+}
+
+impl Encode for PlaintextInputShare {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_u16_items(bytes, &(), &self.extensions);
+        encode_u32_items(bytes, &(), &self.payload);
     }
 }
 
