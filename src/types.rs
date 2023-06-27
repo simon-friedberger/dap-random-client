@@ -188,6 +188,7 @@ impl ExtensionType {
 ///     opaque payload<0..2^32-1>;
 /// } PlaintextInputShare;
 /// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#section-4.3.2-9
+#[derive(Debug)]
 pub struct PlaintextInputShare {
     pub extensions: Vec<Extension>,
     pub payload: Vec<u8>,
@@ -197,6 +198,15 @@ impl Encode for PlaintextInputShare {
     fn encode(&self, bytes: &mut Vec<u8>) {
         encode_u16_items(bytes, &(), &self.extensions);
         encode_u32_items(bytes, &(), &self.payload);
+    }
+}
+
+impl Decode for PlaintextInputShare {
+    fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
+        Ok(PlaintextInputShare {
+            extensions: decode_u16_items(&(), bytes)?,
+            payload: decode_u16_items(&(), bytes)?,
+        })
     }
 }
 

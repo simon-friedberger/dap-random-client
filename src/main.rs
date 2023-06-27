@@ -24,7 +24,9 @@ use std::{
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
 
 mod types;
-use crate::types::{DAPRole, HpkeConfig, ReportID, TaskID, Time, DAPAAD, PlaintextInputShare, Extension};
+use crate::types::{
+    DAPRole, HpkeConfig, PlaintextInputShare, ReportID, TaskID, Time, DAPAAD,
+};
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -43,7 +45,7 @@ struct Task {
 }
 
 fn read_config() -> Config {
-    let file = File::open("config.json").unwrap();
+    let file = File::open("localconfig.json").unwrap();
     let json_data = serde_json::from_reader(file).expect("JSON was not well-formatted");
     json_data
 }
@@ -85,7 +87,8 @@ fn dap_encrypt(
     info: &DAPHpkeInfo,
 ) -> HpkeCiphertext {
     let pubkey_bytes: &[u8] = &hpke_config.public_key;
-    let pubkey = <X25519HkdfSha256 as KemTrait>::PublicKey::from_bytes(pubkey_bytes).unwrap();
+    let pubkey = <X25519HkdfSha256 as KemTrait>::PublicKey::from_bytes(pubkey_bytes)
+        .expect("Could not parse public key");
     let mut csprng = rand::rngs::StdRng::from_entropy();
     let (encapped_key, ciphertext) =
         hpke::single_shot_seal::<AesGcm128, HkdfSha256, X25519HkdfSha256, _>(
@@ -105,10 +108,18 @@ fn dap_encrypt(
     }
 }
 
-async fn send_report(report: Report, config: &Config, task_id: &TaskID) -> Result<(), Box<dyn Error>> {
+async fn send_report(
+    report: Report,
+    config: &Config,
+    task_id: &TaskID,
+) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
     let res = client
-        .put(format!("{}/tasks/{}/reports", config.leader_url, task_id.base64encoded()))
+        .put(format!(
+            "{}/tasks/{}/reports",
+            config.leader_url,
+            task_id.base64encoded()
+        ))
         .header("Content-Type", "application/dap-report")
         .body(report.get_encoded())
         .send()
