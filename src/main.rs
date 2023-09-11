@@ -15,6 +15,7 @@ use prio::{codec::Encode, vdaf::prio3::Prio3Sum};
 use rand::{thread_rng, Rng, SeedableRng};
 use reqwest::StatusCode;
 use serde::Deserialize;
+use serde_json::Value;
 use std::io::Cursor;
 use std::{
     error::Error,
@@ -24,9 +25,7 @@ use std::{
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
 
 mod types;
-use crate::types::{
-    DAPRole, HpkeConfig, PlaintextInputShare, ReportID, TaskID, Time, DAPAAD,
-};
+use crate::types::{DAPRole, DapAad, HpkeConfig, PlaintextInputShare, ReportID, TaskID, Time};
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -37,17 +36,17 @@ struct Config {
 
 #[derive(Debug, Deserialize)]
 struct Task {
+    #[serde(deserialize_with = "types::from_base64")]
     id: TaskID,
     vdaf: String,
     veclen: usize,
-    bits: u32,
+    bits: usize,
     report_count: usize,
 }
 
 fn read_config() -> Config {
-    let file = File::open("localconfig.json").unwrap();
-    let json_data = serde_json::from_reader(file).expect("JSON was not well-formatted");
-    json_data
+    let file = File::open("debugconfig.json").unwrap();
+    serde_json::from_reader(file).expect("JSON was not well-formatted")
 }
 
 fn select_hpke_config(configs: Vec<HpkeConfig>) -> Result<HpkeConfig, Box<dyn Error>> {
@@ -77,13 +76,13 @@ async fn get_hpke_config(base_url: &str, task_id: &TaskID) -> Result<HpkeConfig,
         panic!("Failed to get HPKE config: {:?}", &resp);
     }
     let configs = decode_u16_items(&(), &mut Cursor::new(&resp.bytes().await?))?;
-    Ok(select_hpke_config(configs)?) // TODO use anyhow
+    select_hpke_config(configs)
 }
 
 fn dap_encrypt(
     hpke_config: &HpkeConfig,
     msg: &[u8],
-    aad: &DAPAAD,
+    aad: &DapAad,
     info: &DAPHpkeInfo,
 ) -> HpkeCiphertext {
     let pubkey_bytes: &[u8] = &hpke_config.public_key;
@@ -126,7 +125,17 @@ async fn send_report(
         .await?;
 
     if res.status() != StatusCode::OK {
-        println!("ERROR: Failed to send report. Response: {:?}", res);
+        println!("\nERROR: Failed to send report.");
+        println!("Response: {:?}", res);
+        if res
+            .headers()
+            .get("Content-Type")
+            .is_some_and(|ct| ct.to_str().unwrap().contains("json"))
+        {
+            println!("JSON: {:?}", res.json::<Value>().await?);
+        } else {
+            println!("CONTENT: {:?}", res.text().await.unwrap());
+        }
         Err("Failed to send report".into())
     } else {
         Ok(())
@@ -152,19 +161,27 @@ async fn submit_reports_for_task(
     let report_id = ReportID::generate();
 
     let (prio3public_share, input_shares) = if task.vdaf == "Prio3SumVec" {
-        let prio = Prio3SumVec::new_sum_vec(2, 1, task.veclen).unwrap();
+        let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen).unwrap();
+        let total = thread_rng().gen_range(0..1 << task.bits);
+
         let mut measurement = vec![0; task.veclen];
-        measurement[0] = 1;
-        if thread_rng().gen::<bool>() {
-            measurement[2] = 1;
-        } else {
-            measurement[3] = 1;
+        measurement[0] = total;
+        if task.veclen > 2 {
+            for _ in 0..total {
+                if thread_rng().gen::<bool>() {
+                    measurement[1] += 1;
+                } else {
+                    measurement[2] += 1;
+                }
+            }
         }
+        //println!("Sending measurement for Prio3SumVec: {:?}", measurement);
         prio.shard(&measurement, report_id.as_ref()).unwrap()
     } else if task.vdaf == "Prio3Sum" {
-        let prio = Prio3Sum::new_sum(2, task.bits.try_into().unwrap()).unwrap();
+        let prio = Prio3Sum::new_sum(2, task.bits).unwrap();
 
         let measurement = thread_rng().gen_range(0..1 << task.bits);
+        //println!("Sending measurement for Prio3Sum: {:?}", measurement);
         prio.shard(&measurement, report_id.as_ref()).unwrap()
     } else {
         panic!("Not implemented. task.vdaf: {} unknown.", task.vdaf);
@@ -179,14 +196,14 @@ async fn submit_reports_for_task(
         time: Time::generate(time_precision),
     };
 
-    let aad = DAPAAD::new(&task.id, &metadata, &public_share);
+    let aad = DapAad::new(&task.id, &metadata, &public_share);
 
     let leader_pt_share = PlaintextInputShare {
         extensions: Vec::new(),
         payload: input_shares[0].get_encoded(),
     };
     let leader_payload = dap_encrypt(
-        &leader_hpke_config,
+        leader_hpke_config,
         &leader_pt_share.get_encoded(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Leader),
@@ -197,7 +214,7 @@ async fn submit_reports_for_task(
         payload: input_shares[1].get_encoded(),
     };
     let helper_payload = dap_encrypt(
-        &helper_hpke_config,
+        helper_hpke_config,
         &helper_pt_share.get_encoded(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Helper),
@@ -209,7 +226,7 @@ async fn submit_reports_for_task(
         encrypted_input_shares: vec![leader_payload, helper_payload],
     };
 
-    send_report(report, &config, &task.id).await.unwrap();
+    send_report(report, config, &task.id).await.unwrap();
 }
 
 #[tokio::main]
@@ -231,8 +248,8 @@ async fn main() {
         for i in 0..task.report_count {
             print!("{} ", i + 1);
             io::stdout().flush().unwrap();
-            submit_reports_for_task(&task, &config, &leader_hpke_config, &helper_hpke_config).await;
+            submit_reports_for_task(task, &config, &leader_hpke_config, &helper_hpke_config).await;
         }
-        println!("");
+        println!();
     }
 }

@@ -14,7 +14,7 @@ use prio::codec::{
     decode_u16_items, decode_u32_items, encode_u16_items, encode_u32_items, CodecError, Decode,
     Encode,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::io::{Cursor, Read};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -45,46 +45,59 @@ pub struct DAPHpkeInfo {
 
 impl DAPHpkeInfo {
     pub fn new(sender: DAPRole, receiver: DAPRole) -> Self {
-        let mut info: Vec<u8> = b"dap-04 input share".iter().copied().collect();
+        let mut info: Vec<u8> = b"dap-04 input share".to_vec();
         info.push(sender.as_byte());
         info.push(receiver.as_byte());
         DAPHpkeInfo { data: info }
     }
 
-    pub fn bytes<'a>(&'a self) -> &'a [u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.data
     }
 }
 
 #[derive(Debug)]
-pub struct DAPAAD {
+pub struct DapAad {
     data: Vec<u8>,
 }
 
-impl DAPAAD {
-    pub fn new(task_id: &TaskID, metadata: &ReportMetadata, public_share: &Vec<u8>) -> Self {
+impl DapAad {
+    pub fn new(task_id: &TaskID, metadata: &ReportMetadata, public_share: &[u8]) -> Self {
         let mut aad: Vec<u8> = Vec::new();
         task_id.encode(&mut aad);
         metadata.encode(&mut aad);
         encode_u32_items(&mut aad, &(), public_share);
-        DAPAAD { data: aad }
+        DapAad { data: aad }
     }
 
-    pub fn bytes<'a>(&'a self) -> &'a [u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.data
     }
 }
 
 /// opaque TaskId[32];
 /// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-task-configuration
-#[derive(Debug, PartialEq, Eq, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Deserialize, Clone)]
 pub struct TaskID(pub [u8; 32]);
 
 impl TaskID {
     pub fn base64encoded(&self) -> String {
-        let task_id_base64 = general_purpose::URL_SAFE_NO_PAD.encode(self.0);
-        task_id_base64
+        general_purpose::URL_SAFE_NO_PAD.encode(self.0)
     }
+}
+
+pub fn from_base64<'de, D>(deserializer: D) -> Result<TaskID, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let base64_str = String::deserialize(deserializer)?;
+    let bytes: Vec<u8> = general_purpose::URL_SAFE
+        .decode(base64_str)
+        .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+    let array_bytes: [u8; 32] = bytes
+        .try_into()
+        .map_err(|err: Vec<u8>| serde::de::Error::custom(format!("{:?}", err)))?;
+    Ok(TaskID(array_bytes))
 }
 
 impl Decode for TaskID {
@@ -99,6 +112,12 @@ impl Decode for TaskID {
 impl Encode for TaskID {
     fn encode(&self, bytes: &mut Vec<u8>) {
         bytes.extend_from_slice(&self.0);
+    }
+}
+
+impl std::fmt::Debug for TaskID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TaskID(\"{}\")", self.base64encoded())
     }
 }
 
@@ -376,20 +395,6 @@ pub struct Report {
     pub metadata: ReportMetadata,
     pub public_share: Vec<u8>,
     pub encrypted_input_shares: Vec<HpkeCiphertext>,
-}
-
-impl Report {
-    /// Creates a minimal report for use in tests.
-    pub fn new_dummy() -> Self {
-        Report {
-            metadata: ReportMetadata {
-                report_id: ReportID::generate(),
-                time: Time::generate(1),
-            },
-            public_share: vec![],
-            encrypted_input_shares: vec![],
-        }
-    }
 }
 
 impl Decode for Report {

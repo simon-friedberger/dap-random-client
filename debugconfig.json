@@ -1,24 +1,25 @@
 {
-    "leader_url": "https://janus-leader-test.dev.mozaws.net",
-    "helper_url": "https://janus-helper-test.dev.mozaws.net",
+    "leader_url": "http://localhost:10001",
+    "helper_url": "http://localhost:10002",
     "tasks":
     [
+
         {
-            "id": "vcVTOdjvoE_JenlC4zyASKnSPGMW8QR3kL1oKbPe4YU="
+            "id": "K-fy-uf_GpQqAHLXGDCU9L1-_kLvMZ_sXVPGUnvbJU8="
             , "vdaf": "Prio3Sum"
-            , "veclen": 0
+            , "veclen": 1
             , "bits": 2
             , "report_count": 100
         },
         {
-            "id": "fFiBwTQuMv1zCP8JGXbyNIrTiUeLhc21YghCCwtsFBY="
+            "id": "xcXEy27Zn4J8pRaZ0ReB23bhpJsY2gDtupN_EluJkHk="
             , "vdaf": "Prio3SumVec"
             , "veclen": 1024
             , "bits": 1
             , "report_count": 100
         },
         {
-            "id": "KYq-peoD4cchLf1BzMl1yjP9o_iwxY3zCg27evX_fkA="
+            "id": "6XGuBDohCesvyEfCWS_1ZXYsXSd_xl8yR5h68_XLxeU="
             , "vdaf": "Prio3SumVec"
             , "veclen": 20
             , "bits": 16
