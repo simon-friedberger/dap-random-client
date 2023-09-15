@@ -4,21 +4,21 @@
     "tasks":
     [
         {
-            "id": "vcVTOdjvoE_JenlC4zyASKnSPGMW8QR3kL1oKbPe4YU="
+            "id": "98B7Pa7oTO_ioJwSE5yJ2d_EZZZ9ekzKf05hTU6zbHg="
             , "vdaf": "Prio3Sum"
             , "veclen": 0
             , "bits": 2
             , "report_count": 100
         },
         {
-            "id": "fFiBwTQuMv1zCP8JGXbyNIrTiUeLhc21YghCCwtsFBY="
+            "id": "7Unnt02ECib_1TDbWfI1PYO7KgQibmC_EezYrkgwLqU="
             , "vdaf": "Prio3SumVec"
             , "veclen": 1024
             , "bits": 1
             , "report_count": 100
         },
         {
-            "id": "KYq-peoD4cchLf1BzMl1yjP9o_iwxY3zCg27evX_fkA="
+            "id": "JXh46ajEWY35M4ikvorpBM3oWuMtglx2FExFiaiLnW4="
             , "vdaf": "Prio3SumVec"
             , "veclen": 20
             , "bits": 16
