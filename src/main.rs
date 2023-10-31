@@ -45,7 +45,7 @@ struct Task {
 }
 
 fn read_config() -> Config {
-    let file = File::open("debugconfig.json").unwrap();
+    let file = File::open("divviupconfig.json").unwrap();
     serde_json::from_reader(file).expect("JSON was not well-formatted")
 }
 
@@ -161,7 +161,7 @@ async fn submit_reports_for_task(
     let report_id = ReportID::generate();
 
     let (prio3public_share, input_shares) = if task.vdaf == "Prio3SumVec" {
-        let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen).unwrap();
+        let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen, 4).unwrap();
         let total = thread_rng().gen_range(0..1 << task.bits);
 
         let mut measurement = vec![0; task.veclen];
@@ -223,7 +223,8 @@ async fn submit_reports_for_task(
     let report = Report {
         metadata,
         public_share,
-        encrypted_input_shares: vec![leader_payload, helper_payload],
+        leader_encrypted_input_share: leader_payload,
+        helper_encrypted_input_share: helper_payload,
     };
 
     send_report(report, config, &task.id).await.unwrap();

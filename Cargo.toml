@@ -9,7 +9,7 @@ edition = "2021"
 base64 = "0.21.0"
 futures = "0.3.27"
 hpke = "0.10.0"
-prio = "0.12.2"
+prio = "0.15.0"
 rand = "0.8.5"
 reqwest = { version = "0.11.14", features = ["json"] }
 serde = { version = "1.0.158", features = ["derive"] }

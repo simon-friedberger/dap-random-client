@@ -45,7 +45,7 @@ pub struct DAPHpkeInfo {
 
 impl DAPHpkeInfo {
     pub fn new(sender: DAPRole, receiver: DAPRole) -> Self {
-        let mut info: Vec<u8> = b"dap-04 input share".to_vec();
+        let mut info: Vec<u8> = b"dap-07 input share".to_vec();
         info.push(sender.as_byte());
         info.push(receiver.as_byte());
         DAPHpkeInfo { data: info }
@@ -76,7 +76,7 @@ impl DapAad {
 }
 
 /// opaque TaskId[32];
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-task-configuration
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-task-configuration
 #[derive(PartialEq, Eq, Deserialize, Clone)]
 pub struct TaskID(pub [u8; 32]);
 
@@ -123,7 +123,7 @@ impl std::fmt::Debug for TaskID {
 
 /// uint64 Time;
 /// seconds elapsed since start of UNIX epoch
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
 pub struct Time(pub u64);
 
@@ -155,7 +155,7 @@ impl Time {
 ///     ExtensionType extension_type;
 ///     opaque extension_data<0..2^16-1>;
 /// } Extension;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-extensions
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-upload-extensions
 #[derive(Debug, PartialEq)]
 pub struct Extension {
     extension_type: ExtensionType,
@@ -185,7 +185,7 @@ impl Encode for Extension {
 ///     TBD(0),
 ///     (65535)
 /// } ExtensionType;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-extensions
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-upload-extensions
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u16)]
 enum ExtensionType {
@@ -206,7 +206,7 @@ impl ExtensionType {
 ///     Extension extensions<0..2^16-1>;
 ///     opaque payload<0..2^32-1>;
 /// } PlaintextInputShare;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#section-4.3.2-9
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#section-4.3.2-9
 #[derive(Debug)]
 pub struct PlaintextInputShare {
     pub extensions: Vec<Extension>,
@@ -231,7 +231,7 @@ impl Decode for PlaintextInputShare {
 
 /// Identifier for a server's HPKE configuration
 /// uint8 HpkeConfigId;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct HpkeConfigId(u8);
 
@@ -258,7 +258,7 @@ impl Encode for HpkeConfigId {
 /// uint16 HpkeAeadId; /* Defined in [HPKE] */
 /// uint16 HpkeKemId;  /* Defined in [HPKE] */
 /// uint16 HpkeKdfId;  /* Defined in [HPKE] */
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-hpke-configuration-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-hpke-configuration-request
 #[derive(Debug)]
 pub struct HpkeConfig {
     pub id: HpkeConfigId,
@@ -296,7 +296,7 @@ impl Encode for HpkeConfig {
 ///     opaque enc<1..2^16-1>;     /* encapsulated HPKE key */
 ///     opaque payload<1..2^32-1>; /* ciphertext */
 /// } HpkeCiphertext;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
 pub struct HpkeCiphertext {
     pub config_id: HpkeConfigId,
@@ -327,7 +327,7 @@ impl Encode for HpkeCiphertext {
 }
 
 /// opaque ReportID[16];
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-protocol-definition
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReportID(pub [u8; 16]);
 
@@ -361,7 +361,7 @@ impl AsRef<[u8; 16]> for ReportID {
 ///     ReportID report_id;
 ///     Time time;
 /// } ReportMetadata;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-upload-request
 #[derive(Debug, PartialEq)]
 pub struct ReportMetadata {
     pub report_id: ReportID,
@@ -387,28 +387,32 @@ impl Encode for ReportMetadata {
 /// struct {
 ///     ReportMetadata metadata;
 ///     opaque public_share<0..2^32-1>;
-///     HpkeCiphertext encrypted_input_shares<1..2^32-1>;
+///     HpkeCiphertext leader_encrypted_input_share;
+///     HpkeCiphertext helper_encrypted_input_share;
 /// } Report;
-/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-04.html#name-upload-request
+/// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-upload-request
 #[derive(Debug, PartialEq)]
 pub struct Report {
     pub metadata: ReportMetadata,
     pub public_share: Vec<u8>,
-    pub encrypted_input_shares: Vec<HpkeCiphertext>,
+    pub leader_encrypted_input_share: HpkeCiphertext,
+    pub helper_encrypted_input_share: HpkeCiphertext,
 }
 
 impl Decode for Report {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {
         let metadata = ReportMetadata::decode(bytes)?;
         let public_share: Vec<u8> = decode_u32_items(&(), bytes)?;
-        let encrypted_input_shares: Vec<HpkeCiphertext> = decode_u32_items(&(), bytes)?;
+        let leader_encrypted_input_share: HpkeCiphertext = HpkeCiphertext::decode(bytes)?;
+        let helper_encrypted_input_share: HpkeCiphertext = HpkeCiphertext::decode(bytes)?;
 
         let remaining_bytes = bytes.get_ref().len() - (bytes.position() as usize);
         if remaining_bytes == 0 {
             Ok(Report {
                 metadata,
                 public_share,
-                encrypted_input_shares,
+                leader_encrypted_input_share,
+                helper_encrypted_input_share,
             })
         } else {
             Err(CodecError::BytesLeftOver(remaining_bytes))
@@ -420,6 +424,7 @@ impl Encode for Report {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.metadata.encode(bytes);
         encode_u32_items(bytes, &(), &self.public_share);
-        encode_u32_items(bytes, &(), &self.encrypted_input_shares);
+        self.leader_encrypted_input_share.encode(bytes);
+        self.helper_encrypted_input_share.encode(bytes);
     }
 }
