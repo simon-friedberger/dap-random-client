@@ -259,7 +259,7 @@ impl Encode for HpkeConfigId {
 /// uint16 HpkeKemId;  /* Defined in [HPKE] */
 /// uint16 HpkeKdfId;  /* Defined in [HPKE] */
 /// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-hpke-configuration-request
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HpkeConfig {
     pub id: HpkeConfigId,
     pub kem_id: u16,
