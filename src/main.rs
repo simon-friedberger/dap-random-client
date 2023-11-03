@@ -13,7 +13,7 @@ use prio::codec::decode_u16_items;
 use prio::vdaf::{prio3::Prio3SumVec, Client};
 use prio::{codec::Encode, vdaf::prio3::Prio3Sum};
 use rand::{thread_rng, Rng, SeedableRng};
-use reqwest::StatusCode;
+use reqwest::{Client as HttpClient, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
 use std::io::Cursor;
@@ -22,19 +22,20 @@ use std::{
     fs::File,
     io::{self, Write},
 };
+use tokio::task::JoinSet;
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
 
 mod types;
 use crate::types::{DAPRole, DapAad, HpkeConfig, PlaintextInputShare, ReportID, TaskID, Time};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Config {
     leader_url: String,
     helper_url: String,
     tasks: Vec<Task>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Task {
     #[serde(deserialize_with = "types::from_base64")]
     id: TaskID,
@@ -111,9 +112,9 @@ async fn send_report(
     report: Report,
     config: &Config,
     task_id: &TaskID,
+    http_client: HttpClient,
 ) -> Result<(), Box<dyn Error>> {
-    let client = reqwest::Client::new();
-    let res = client
+    let res = http_client
         .put(format!(
             "{}/tasks/{}/reports",
             config.leader_url,
@@ -143,10 +144,11 @@ async fn send_report(
 }
 
 async fn submit_reports_for_task(
-    task: &Task,
-    config: &Config,
-    leader_hpke_config: &HpkeConfig,
-    helper_hpke_config: &HpkeConfig,
+    task: Task,
+    config: Config,
+    leader_hpke_config: HpkeConfig,
+    helper_hpke_config: HpkeConfig,
+    http_client: HttpClient,
 ) {
     // https://www.rfc-editor.org/rfc/rfc9180#name-kem-ids
     assert_eq!(leader_hpke_config.kem_id, 0x0020);
@@ -203,7 +205,7 @@ async fn submit_reports_for_task(
         payload: input_shares[0].get_encoded(),
     };
     let leader_payload = dap_encrypt(
-        leader_hpke_config,
+        &leader_hpke_config,
         &leader_pt_share.get_encoded(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Leader),
@@ -214,7 +216,7 @@ async fn submit_reports_for_task(
         payload: input_shares[1].get_encoded(),
     };
     let helper_payload = dap_encrypt(
-        helper_hpke_config,
+        &helper_hpke_config,
         &helper_pt_share.get_encoded(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Helper),
@@ -227,12 +229,15 @@ async fn submit_reports_for_task(
         helper_encrypted_input_share: helper_payload,
     };
 
-    send_report(report, config, &task.id).await.unwrap();
+    send_report(report, &config, &task.id, http_client)
+        .await
+        .unwrap();
 }
 
 #[tokio::main]
 async fn main() {
     let config = read_config();
+    let client = reqwest::Client::new();
     for task in &config.tasks {
         println!("Now processing: {:?}", task);
 
@@ -244,13 +249,35 @@ async fn main() {
         let leader_hpke_config: HpkeConfig = leader_hpke_config.unwrap();
         let helper_hpke_config: HpkeConfig = helper_hpke_config.unwrap();
 
-        print!("Submitting reports: ({}) ", task.report_count);
+        println!("Submitting reports: ({}) ", task.report_count);
         io::stdout().flush().unwrap();
+        let mut tasks = JoinSet::new();
+
         for i in 0..task.report_count {
-            print!("{} ", i + 1);
-            io::stdout().flush().unwrap();
-            submit_reports_for_task(task, &config, &leader_hpke_config, &helper_hpke_config).await;
+            let client = client.clone();
+            let task = task.clone();
+            let config = config.clone();
+            let leader_hpke_config = leader_hpke_config.clone();
+            let helper_hpke_config = helper_hpke_config.clone();
+
+            tasks.spawn(async move {
+                submit_reports_for_task(
+                    task,
+                    config,
+                    leader_hpke_config,
+                    helper_hpke_config,
+                    client,
+                )
+                .await;
+                i + 1
+            });
         }
-        println!();
+
+        while let Some(submission_no) = tasks.join_next().await {
+            println!(
+                "Submission completed for report #: {}",
+                submission_no.unwrap()
+            );
+        }
     }
 }
