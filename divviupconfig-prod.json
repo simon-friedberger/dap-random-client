@@ -1,10 +1,10 @@
 {
     "leader_url": "https://dap-07-1.api.divviup.org",
-    "helper_url": "https://dev.dap.nonprod.webservices.mozgcp.net",
+    "helper_url": "https://dap.services.mozilla.com",
     "tasks":
     [
         {
-            "id": "yL5q2lPLTl1VgHvMEUBB8BEunmdmb7-7QKiRxI0ocTU="
+            "id": "HsjRyyIIxLoIE7Z6rziEIW5yEBBA0jVe4J5Ex-NpNUU="
             , "vdaf": "Prio3Sum"
             , "veclen": 0
             , "bits": 1

@@ -1,0 +1,14 @@
+{
+    "leader_url": "https://dap-07-1.api.divviup.org",
+    "helper_url": "https://stage.dap.nonprod.webservices.mozgcp.net",
+    "tasks":
+    [
+        {
+            "id": "WhdgMvkaqRco53ekWL92FyX7l7NRdd-2Tb0yOHZfSeI="
+            , "vdaf": "Prio3Sum"
+            , "veclen": 0
+            , "bits": 1
+            , "report_count": 110
+        }
+    ]
+}

@@ -46,7 +46,13 @@ struct Task {
 }
 
 fn read_config() -> Config {
-    let file = File::open("divviupconfig.json").unwrap();
+    // Load config file based on `DAP_ENV`, which can be any of `dev`, `stage`, and `prod`.
+    // `dev` is used if `DAP_ENV` is not specified.
+    let path = format!(
+        "divviupconfig-{}.json",
+        option_env!("DAP_ENV").unwrap_or("dev")
+    );
+    let file = File::open(path).unwrap();
     serde_json::from_reader(file).expect("JSON was not well-formatted")
 }
 
