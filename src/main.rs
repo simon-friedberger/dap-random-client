@@ -16,11 +16,16 @@ use rand::{thread_rng, Rng, SeedableRng};
 use reqwest::{Client as HttpClient, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
-use std::io::Cursor;
 use std::{
+    cmp::{max, min},
     error::Error,
+    fmt::Write as _,
     fs::File,
-    io::{self, Write},
+    io::{self, Cursor, Write as _},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 use tokio::task::JoinSet;
 use types::{DAPHpkeInfo, HpkeCiphertext, Report, ReportMetadata};
@@ -240,10 +245,30 @@ async fn submit_reports_for_task(
         .unwrap();
 }
 
+fn report_progress(done: usize, total: usize) -> String {
+    const SCALER: usize = 25; // Such that the progress string can be shown in one line.
+    let down_scale_by = max(total / SCALER, 1);
+    let scaled_done = min(done / down_scale_by, SCALER);
+    let mut buf = String::new();
+
+    // The progress report will look like:
+    //
+    // Submitting reports: [・・・・・・・・・Co o o o o ] 75%
+    write!(&mut buf, "Submitting reports: [").unwrap();
+    write!(&mut buf, "{}", "・".repeat(scaled_done)).unwrap();
+    write!(&mut buf, "C").unwrap();
+    write!(&mut buf, "{}", "o ".repeat(SCALER - scaled_done)).unwrap();
+    write!(&mut buf, "] {:3}%", (done as f32) / (total as f32) * 100.0).unwrap();
+
+    buf
+}
+
 #[tokio::main]
 async fn main() {
     let config = read_config();
     let client = reqwest::Client::new();
+    let counter = Arc::new(AtomicUsize::new(0));
+
     for task in &config.tasks {
         println!("Now processing: {:?}", task);
 
@@ -255,16 +280,17 @@ async fn main() {
         let leader_hpke_config: HpkeConfig = leader_hpke_config.unwrap();
         let helper_hpke_config: HpkeConfig = helper_hpke_config.unwrap();
 
-        println!("Submitting reports: ({}) ", task.report_count);
+        println!("Total reports to submit: ({}) ", task.report_count);
         io::stdout().flush().unwrap();
         let mut tasks = JoinSet::new();
 
-        for i in 0..task.report_count {
+        for _ in 0..task.report_count {
             let client = client.clone();
             let task = task.clone();
             let config = config.clone();
             let leader_hpke_config = leader_hpke_config.clone();
             let helper_hpke_config = helper_hpke_config.clone();
+            let counter = counter.clone();
 
             tasks.spawn(async move {
                 submit_reports_for_task(
@@ -275,15 +301,16 @@ async fn main() {
                     client,
                 )
                 .await;
-                i + 1
+                counter.fetch_add(1, Ordering::Relaxed);
             });
         }
 
-        while let Some(submission_no) = tasks.join_next().await {
-            println!(
-                "Submission completed for report #: {}",
-                submission_no.unwrap()
-            );
+        while (tasks.join_next().await).is_some() {
+            let done = counter.load(Ordering::Relaxed);
+            let progress = report_progress(done, task.report_count);
+            print!("\r{progress}");
+            io::stdout().flush().unwrap();
         }
+        print!("\rDone!");
     }
 }
