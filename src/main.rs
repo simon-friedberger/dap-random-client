@@ -258,7 +258,7 @@ fn report_progress(done: usize, total: usize) -> String {
     write!(&mut buf, "{}", "・".repeat(scaled_done)).unwrap();
     write!(&mut buf, "C").unwrap();
     write!(&mut buf, "{}", "o ".repeat(SCALER - scaled_done)).unwrap();
-    write!(&mut buf, "] {:3}%", (done as f32) / (total as f32) * 100.0).unwrap();
+    write!(&mut buf, "] {:3.0}%", (done as f32) / (total as f32) * 100.0).unwrap();
 
     buf
 }
