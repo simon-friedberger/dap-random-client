@@ -160,7 +160,7 @@ async fn submit_reports_for_task(
     leader_hpke_config: HpkeConfig,
     helper_hpke_config: HpkeConfig,
     http_client: HttpClient,
-) {
+) -> Vec<u128> {
     // https://www.rfc-editor.org/rfc/rfc9180#name-kem-ids
     assert_eq!(leader_hpke_config.kem_id, 0x0020);
     assert_eq!(helper_hpke_config.kem_id, 0x0020);
@@ -173,11 +173,11 @@ async fn submit_reports_for_task(
 
     let report_id = ReportID::generate();
 
+    let mut measurement = vec![0; max(task.veclen, 1)];
     let (prio3public_share, input_shares) = if task.vdaf == "Prio3SumVec" {
         let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen, 4).unwrap();
         let total = thread_rng().gen_range(0..1 << task.bits);
 
-        let mut measurement = vec![0; task.veclen];
         measurement[0] = total;
         if task.veclen > 2 {
             for _ in 0..total {
@@ -193,9 +193,9 @@ async fn submit_reports_for_task(
     } else if task.vdaf == "Prio3Sum" {
         let prio = Prio3Sum::new_sum(2, task.bits).unwrap();
 
-        let measurement = thread_rng().gen_range(0..1 << task.bits);
+        measurement[0] = thread_rng().gen_range(0..1 << task.bits);
         //println!("Sending measurement for Prio3Sum: {:?}", measurement);
-        prio.shard(&measurement, report_id.as_ref()).unwrap()
+        prio.shard(&measurement[0], report_id.as_ref()).unwrap()
     } else {
         panic!("Not implemented. task.vdaf: {} unknown.", task.vdaf);
     };
@@ -243,6 +243,8 @@ async fn submit_reports_for_task(
     send_report(report, &config, &task.id, http_client)
         .await
         .unwrap();
+
+    measurement
 }
 
 fn report_progress(done: usize, total: usize) -> String {
@@ -258,7 +260,12 @@ fn report_progress(done: usize, total: usize) -> String {
     write!(&mut buf, "{}", "・".repeat(scaled_done)).unwrap();
     write!(&mut buf, "C").unwrap();
     write!(&mut buf, "{}", "o ".repeat(SCALER - scaled_done)).unwrap();
-    write!(&mut buf, "] {:3.0}%", (done as f32) / (total as f32) * 100.0).unwrap();
+    write!(
+        &mut buf,
+        "] {:3.0}%",
+        (done as f32) / (total as f32) * 100.0
+    )
+    .unwrap();
 
     buf
 }
@@ -271,6 +278,9 @@ async fn main() {
 
     for task in &config.tasks {
         println!("Now processing: {:?}", task);
+
+        let veclen = max(task.veclen, 1);
+        let mut accumulator = vec![0; veclen];
 
         let (leader_hpke_config, helper_hpke_config) = tokio::join!(
             get_hpke_config(&config.leader_url, &task.id),
@@ -293,7 +303,7 @@ async fn main() {
             let counter = counter.clone();
 
             tasks.spawn(async move {
-                submit_reports_for_task(
+                let res = submit_reports_for_task(
                     task,
                     config,
                     leader_hpke_config,
@@ -302,15 +312,21 @@ async fn main() {
                 )
                 .await;
                 counter.fetch_add(1, Ordering::Relaxed);
+
+                res
             });
         }
 
-        while (tasks.join_next().await).is_some() {
+        while let Some(res) = tasks.join_next().await {
+            let res = res.expect("returned sum vector");
+            for i in 0..veclen {
+                accumulator[i] += res[i];
+            }
             let done = counter.load(Ordering::Relaxed);
             let progress = report_progress(done, task.report_count);
             print!("\r{progress}");
             io::stdout().flush().unwrap();
         }
-        print!("\rDone!");
+        print!("\rDone! Results: {accumulator:?}");
     }
 }
