@@ -27,9 +27,10 @@ RUN \
 
 # Build dap-random-client
 FROM chef AS builder-janus
-COPY --from=planner-janus /app/. .
+COPY --from=planner-janus /app/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
+COPY --from=planner-janus /app/. .
 RUN cargo build --release --bin collect
 
 FROM debian:bookworm-slim AS runtime
@@ -44,10 +45,22 @@ RUN \
 
 COPY --from=builder-client /app/target/release/dap-random-client .
 COPY --from=builder-janus /app/target/release/collect .
+COPY ./scripts/submit-n-collect.sh .
 COPY ./divviupconfig-dev.json .
 COPY ./divviupconfig-stage.json .
 COPY ./divviupconfig-prod.json .
 
 USER app
 
-ENTRYPOINT ["/app/dap-random-client"]
+ENV DAP_ENV=dev
+ENV DAP_DURATION=600
+ENV DAP_CLIENT=/app/dap-random-client
+ENV DAP_COLLECTOR=/app/collect
+ENV DAP_TASK_ID="yL5q2lPLTl1VgHvMEUBB8BEunmdmb7-7QKiRxI0ocTU"
+ENV DAP_LEADER="https://dap-07-1.api.divviup.org"
+ENV DAP_AUTH_BEARER_TOKEN=
+ENV DAP_VDAF=sum
+ENV DAP_VDAF_ARGS="--bits 1"
+ENV DAP_HPKE_CONFIG=
+ENV DAP_HPKE_PRIVATE_KEY=
+ENTRYPOINT ["/app/submit-n-collect.sh"]
