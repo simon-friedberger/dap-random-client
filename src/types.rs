@@ -45,7 +45,7 @@ pub struct DAPHpkeInfo {
 
 impl DAPHpkeInfo {
     pub fn new(sender: DAPRole, receiver: DAPRole) -> Self {
-        let mut info: Vec<u8> = b"dap-07 input share".to_vec();
+        let mut info: Vec<u8> = b"dap-09 input share".to_vec();
         info.push(sender.as_byte());
         info.push(receiver.as_byte());
         DAPHpkeInfo { data: info }
@@ -64,9 +64,9 @@ pub struct DapAad {
 impl DapAad {
     pub fn new(task_id: &TaskID, metadata: &ReportMetadata, public_share: &[u8]) -> Self {
         let mut aad: Vec<u8> = Vec::new();
-        task_id.encode(&mut aad);
-        metadata.encode(&mut aad);
-        encode_u32_items(&mut aad, &(), public_share);
+        task_id.encode(&mut aad).expect("Failed to encode task ID");
+        metadata.encode(&mut aad).expect("Failed to encode metadata");
+        encode_u32_items(&mut aad, &(), public_share).expect("Failed to encode public share");
         DapAad { data: aad }
     }
 
@@ -110,8 +110,9 @@ impl Decode for TaskID {
 }
 
 impl Encode for TaskID {
-    fn encode(&self, bytes: &mut Vec<u8>) {
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
         bytes.extend_from_slice(&self.0);
+        Ok(())
     }
 }
 
@@ -134,8 +135,9 @@ impl Decode for Time {
 }
 
 impl Encode for Time {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        u64::encode(&self.0, bytes);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        u64::encode(&self.0, bytes)?;
+        Ok(())
     }
 }
 
@@ -175,9 +177,10 @@ impl Decode for Extension {
 }
 
 impl Encode for Extension {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.extension_type as u16).encode(bytes);
-        encode_u16_items(bytes, &(), &self.extension_data);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        (self.extension_type as u16).encode(bytes)?;
+        encode_u16_items(bytes, &(), &self.extension_data)?;
+        Ok(())
     }
 }
 
@@ -214,9 +217,10 @@ pub struct PlaintextInputShare {
 }
 
 impl Encode for PlaintextInputShare {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_u16_items(bytes, &(), &self.extensions);
-        encode_u32_items(bytes, &(), &self.payload);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        encode_u16_items(bytes, &(), &self.extensions)?;
+        encode_u32_items(bytes, &(), &self.payload)?;
+        Ok(())
     }
 }
 
@@ -242,8 +246,9 @@ impl Decode for HpkeConfigId {
 }
 
 impl Encode for HpkeConfigId {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.0.encode(bytes);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        self.0.encode(bytes)?;
+        Ok(())
     }
 }
 
@@ -281,12 +286,14 @@ impl Decode for HpkeConfig {
 }
 
 impl Encode for HpkeConfig {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.id.encode(bytes);
-        self.kem_id.encode(bytes);
-        self.kdf_id.encode(bytes);
-        self.aead_id.encode(bytes);
-        encode_u16_items(bytes, &(), &self.public_key);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        self.id.encode(bytes)?;
+        self.kem_id.encode(bytes)?;
+        self.kdf_id.encode(bytes)?;
+        self.aead_id.encode(bytes)?;
+        encode_u16_items(bytes, &(), &self.public_key)?;
+
+        Ok(())
     }
 }
 
@@ -319,10 +326,11 @@ impl Decode for HpkeCiphertext {
 }
 
 impl Encode for HpkeCiphertext {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.config_id.encode(bytes);
-        encode_u16_items(bytes, &(), &self.enc);
-        encode_u32_items(bytes, &(), &self.payload);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        self.config_id.encode(bytes)?;
+        encode_u16_items(bytes, &(), &self.enc)?;
+        encode_u32_items(bytes, &(), &self.payload)?;
+        Ok(())
     }
 }
 
@@ -340,8 +348,9 @@ impl Decode for ReportID {
 }
 
 impl Encode for ReportID {
-    fn encode(&self, bytes: &mut Vec<u8>) {
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
         bytes.extend_from_slice(&self.0);
+        Ok(())
     }
 }
 
@@ -378,9 +387,11 @@ impl Decode for ReportMetadata {
 }
 
 impl Encode for ReportMetadata {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.report_id.encode(bytes);
-        self.time.encode(bytes);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        self.report_id.encode(bytes)?;
+        self.time.encode(bytes)?;
+
+        Ok(())
     }
 }
 
@@ -421,10 +432,12 @@ impl Decode for Report {
 }
 
 impl Encode for Report {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.metadata.encode(bytes);
-        encode_u32_items(bytes, &(), &self.public_share);
-        self.leader_encrypted_input_share.encode(bytes);
-        self.helper_encrypted_input_share.encode(bytes);
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        self.metadata.encode(bytes)?;
+        encode_u32_items(bytes, &(), &self.public_share)?;
+        self.leader_encrypted_input_share.encode(bytes)?;
+        self.helper_encrypted_input_share.encode(bytes)?;
+
+        Ok(())
     }
 }

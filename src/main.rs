@@ -53,10 +53,11 @@ struct Task {
 fn read_config() -> Config {
     // Load config file based on `DAP_ENV`, which can be any of `dev`, `stage`, and `prod`.
     // `dev` is used if `DAP_ENV` is not specified.
-    let path = format!(
-        "divviupconfig-{}.json",
-        option_env!("DAP_ENV").unwrap_or("dev")
-    );
+    // let path = format!(
+    //     "divviupconfig-{}.json",
+    //     option_env!("DAP_ENV").unwrap_or("dev")
+    // );
+    let path = "divviup-stage-only.json";
     let file = File::open(path).unwrap();
     serde_json::from_reader(file).expect("JSON was not well-formatted")
 }
@@ -132,7 +133,7 @@ async fn send_report(
             task_id.base64encoded()
         ))
         .header("Content-Type", "application/dap-report")
-        .body(report.get_encoded())
+        .body(report.get_encoded()?)
         .send()
         .await?;
 
@@ -175,7 +176,8 @@ async fn submit_reports_for_task(
 
     let mut measurement = vec![0; max(task.veclen, 1)];
     let (prio3public_share, input_shares) = if task.vdaf == "Prio3SumVec" {
-        let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen, 4).unwrap();
+        let chunk_length = prio::vdaf::prio3::optimal_chunk_length(task.bits * task.veclen);
+        let prio = Prio3SumVec::new_sum_vec(2, task.bits, task.veclen, chunk_length).unwrap();
         let total = thread_rng().gen_range(0..1 << task.bits);
 
         measurement[0] = total;
@@ -201,7 +203,7 @@ async fn submit_reports_for_task(
     };
 
     debug_assert_eq!(input_shares.len(), 2);
-    let public_share = prio3public_share.get_encoded();
+    let public_share = prio3public_share.get_encoded().unwrap();
 
     let time_precision = 60;
     let metadata = ReportMetadata {
@@ -213,22 +215,22 @@ async fn submit_reports_for_task(
 
     let leader_pt_share = PlaintextInputShare {
         extensions: Vec::new(),
-        payload: input_shares[0].get_encoded(),
+        payload: input_shares[0].get_encoded().unwrap(),
     };
     let leader_payload = dap_encrypt(
         &leader_hpke_config,
-        &leader_pt_share.get_encoded(),
+        &leader_pt_share.get_encoded().unwrap(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Leader),
     );
 
     let helper_pt_share = PlaintextInputShare {
         extensions: Vec::new(),
-        payload: input_shares[1].get_encoded(),
+        payload: input_shares[1].get_encoded().unwrap(),
     };
     let helper_payload = dap_encrypt(
         &helper_hpke_config,
-        &helper_pt_share.get_encoded(),
+        &helper_pt_share.get_encoded().unwrap(),
         &aad,
         &DAPHpkeInfo::new(DAPRole::Client, DAPRole::Helper),
     );
