@@ -51,13 +51,18 @@ struct Task {
 }
 
 fn read_config() -> Config {
-    // Load config file based on `DAP_ENV`, which can be any of `dev`, `stage`, and `prod`.
-    // `dev` is used if `DAP_ENV` is not specified.
-    // let path = format!(
-    //     "divviupconfig-{}.json",
-    //     option_env!("DAP_ENV").unwrap_or("dev")
-    // );
-    let path = "divviup-stage-only.json";
+    let path = match std::env::var("DAP_CFG") {
+        Ok(config_file) => config_file,
+        Err(_) => {
+            // Load config file based on `DAP_ENV`, which can be any of `dev`, `stage`, and `prod`.
+            // `dev` is used if `DAP_ENV` is not specified.
+            let ending = match std::env::var("DAP_ENV") {
+                Ok(env) => env,
+                Err(_) => "dev".into(),
+            };
+            format!("divviupconfig-{}.json", ending)
+     }
+    };
     let file = File::open(path).unwrap();
     serde_json::from_reader(file).expect("JSON was not well-formatted")
 }

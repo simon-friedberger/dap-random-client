@@ -1,0 +1,14 @@
+{
+    "leader_url": "https://staging-dap-09-1.api.divviup.org",
+    "helper_url": "https://staging-dap-09-2.api.divviup.org",
+    "tasks":
+    [
+        {
+            "id": "k4gk4F49vbDpKItMjnLulsijY_gKfMHsqJiUaFpmzXs="
+            , "vdaf": "Prio3SumVec"
+            , "veclen": 20
+            , "bits": 8
+            , "report_count": 101
+        }
+    ]
+}
