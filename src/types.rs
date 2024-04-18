@@ -65,7 +65,9 @@ impl DapAad {
     pub fn new(task_id: &TaskID, metadata: &ReportMetadata, public_share: &[u8]) -> Self {
         let mut aad: Vec<u8> = Vec::new();
         task_id.encode(&mut aad).expect("Failed to encode task ID");
-        metadata.encode(&mut aad).expect("Failed to encode metadata");
+        metadata
+            .encode(&mut aad)
+            .expect("Failed to encode metadata");
         encode_u32_items(&mut aad, &(), public_share).expect("Failed to encode public share");
         DapAad { data: aad }
     }
@@ -237,7 +239,7 @@ impl Decode for PlaintextInputShare {
 /// uint8 HpkeConfigId;
 /// https://www.ietf.org/archive/id/draft-ietf-ppm-dap-07.html#name-protocol-definition
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct HpkeConfigId(u8);
+pub struct HpkeConfigId(pub u8);
 
 impl Decode for HpkeConfigId {
     fn decode(bytes: &mut Cursor<&[u8]>) -> Result<Self, CodecError> {

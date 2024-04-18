@@ -1,0 +1,7 @@
+{
+      "id": 65,
+      "kem_id": "X25519HkdfSha256",
+      "kdf_id": "HkdfSha256",
+      "aead_id": "Aes128Gcm",
+      "public_key": "gA6Bv05_2mI2X5IIbXQNqU96MabKUbbSLs2eTqFbwCQ"
+}

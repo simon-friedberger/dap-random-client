@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.74-bookworm AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.75-bookworm AS chef
 WORKDIR /app
 
 # Plan for dap-random-client
@@ -16,8 +16,7 @@ RUN cargo build --release
 
 # Plan for janus-collector
 FROM chef AS planner-janus
-WORKDIR /app
-ARG JANUS_VERSION=0.6.6
+ARG JANUS_VERSION=0.7.5
 RUN \
     apt-get -qq update && \
     apt-get -qq install -y git && \
@@ -25,11 +24,14 @@ RUN \
     git checkout -b ${JANUS_VERSION} ${JANUS_VERSION} && \
     cargo chef prepare --recipe-path recipe.json
 
-# Build dap-random-client
+# Build janus
 FROM chef AS builder-janus
 COPY --from=planner-janus /app/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN \
+    apt-get -qq update && \
+    apt-get -qq install -y cmake && \
+    cargo chef cook --release --recipe-path recipe.json
 COPY --from=planner-janus /app/. .
 RUN cargo build --release --bin collect
 
@@ -46,21 +48,23 @@ RUN \
 COPY --from=builder-client /app/target/release/dap-random-client .
 COPY --from=builder-janus /app/target/release/collect .
 COPY ./scripts/submit-n-collect.sh .
-COPY ./divviupconfig-dev.json .
-COPY ./divviupconfig-stage.json .
-COPY ./divviupconfig-prod.json .
+COPY ./*.json .
 
 USER app
 
-ENV DAP_ENV=dev
-ENV DAP_DURATION=600
+# Submission settings
+#ENV DAP_ENV=
+ENV DAP_CFG=divviup-stage-only.json
 ENV DAP_CLIENT=/app/dap-random-client
+
+# Collection settings
+ENV DAP_DURATION=300
 ENV DAP_COLLECTOR=/app/collect
-ENV DAP_TASK_ID="yL5q2lPLTl1VgHvMEUBB8BEunmdmb7-7QKiRxI0ocTU"
-ENV DAP_LEADER="https://dap-07-1.api.divviup.org"
+ENV DAP_TASK_ID="k4gk4F49vbDpKItMjnLulsijY_gKfMHsqJiUaFpmzXs"
+ENV DAP_LEADER="https://staging-dap-09-1.api.divviup.org"
 ENV DAP_AUTH_BEARER_TOKEN=
-ENV DAP_VDAF=sum
-ENV DAP_VDAF_ARGS="--bits 1"
+ENV DAP_VDAF=sumvec
+ENV DAP_VDAF_ARGS="--bits 8 --length 20"
 ENV DAP_HPKE_CONFIG=
 ENV DAP_HPKE_PRIVATE_KEY=
 ENTRYPOINT ["/app/submit-n-collect.sh"]
